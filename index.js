@@ -46,10 +46,10 @@ function verifyJWT(req, res, next) {
 async function run() {
   try {
     const appointmentOptionCollection = client
-      .db("doctorsPortal")
+      .db("doctors")
       .collection("appointmentOptions");
 
-    const bookingCollection = client.db("doctorsPortal").collection("bookings");
+    const bookingCollection = client.db("doctors").collection("bookings");
 
     app.post("/jwt", (req, res) => {
       const user = req.body;
@@ -61,8 +61,27 @@ async function run() {
 
     // Get Appointment Options
     app.get("/appointmentOptions", async (req, res) => {
-      const cursor = await appointmentOptionCollection.find({});
-      const options = await cursor.toArray();
+      const date = req.query.date;
+      const query = {};
+      const options = await appointmentOptionCollection.find(query).toArray();
+
+      // get the bookings of the provided date
+      const bookingQuery = { appointmentDate: date };
+      const alreadyBooked = await bookingCollection
+        .find(bookingQuery)
+        .toArray();
+
+      // code carefully :D
+      options.forEach((option) => {
+        const optionBooked = alreadyBooked.filter(
+          (book) => book.treatment === option.name
+        );
+        const bookedSlots = optionBooked.map((book) => book.slot);
+        const remainingSlots = option.slots.filter(
+          (slot) => !bookedSlots.includes(slot)
+        );
+        option.slots = remainingSlots;
+      });
       res.send(options);
     });
 
@@ -70,8 +89,16 @@ async function run() {
      * bookings
      * app.get('/bookings')
      * app.get('/bookings/:id')
-     * app.post()
+     * app.post('/bookings')
+     * app.patch('/bookings/:id')
+     * app.delete('/bookings/:id')
      * */
+
+    app.post("/bookings", async (req, res) => {
+      const bookings = req.body;
+      const resust = await bookingCollection.insertOne(bookings);
+      res.send(resust);
+    });
 
     //
   } finally {
