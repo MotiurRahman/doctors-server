@@ -12,8 +12,12 @@ const port = process.env.PORT || 8000;
 app.use(cors());
 app.use(express.json());
 
+// app.get("/", (req, res) => {
+//   res.send("Hello world");
+// });
+
 app.get("/", (req, res) => {
-  res.send("Hello world");
+  res.json({ result: true });
 });
 
 console.log(process.env.DB_USER, process.env.DB_PASSWORD);
@@ -28,16 +32,20 @@ const client = new MongoClient(uri, {
 
 function verifyJWT(req, res, next) {
   const authHeader = req.headers.authorization;
-  console.log("authHeader", authHeader);
+  //console.log("authHeader", authHeader);
   if (!authHeader) {
-    return res.status(401).send({ message: "unauthorization access" });
+    return res
+      .status(401)
+      .send({ status: 401, message: "unauthorization access" });
   }
 
   const token = authHeader.split(" ")[1];
 
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, function (err, decoded) {
     if (err) {
-      return res.status(401).send({ message: "unauthorization access" });
+      return res
+        .status(401)
+        .send({ status: 401, message: "unauthorization access" });
     }
     req.decoded = decoded;
     next();
@@ -61,6 +69,16 @@ async function run() {
     //   });
     //   res.send({ token });
     // });
+
+    const verifyAdmin = async (req, res, next) => {
+      const decodedEmail = req.decoded.email;
+      const query = { email: decodedEmail };
+      const user = await usersCollection.findOne(query);
+      if (user?.role !== "admin") {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
 
     app.get("/jwt", async (req, res) => {
       const email = req.query.email;
@@ -220,13 +238,7 @@ async function run() {
       res.send(resut);
     });
 
-    app.put("/users/admin/:id", verifyJWT, async (req, res) => {
-      const decodedEmail = req.decoded.email;
-      const query = { email: decodedEmail };
-      const user = await usersCollection.findOne(query);
-      if (user?.role !== "admin") {
-        return res.status(403).send({ message: "forbidden access" });
-      }
+    app.put("/users/admin/:id", verifyJWT, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const filter = { _id: ObjectId(id) };
       const option = {
@@ -247,21 +259,21 @@ async function run() {
     });
 
     // add doctor
-    app.post("/doctors", async (req, res) => {
+    app.post("/doctors", verifyJWT, verifyAdmin, async (req, res) => {
       const doctors = req.body;
       const result = await doctorsCollection.insertOne(doctors);
       res.send(result);
     });
 
     // get doctor
-    app.get("/doctors", async (req, res) => {
+    app.get("/doctors", verifyJWT, async (req, res) => {
       const query = {};
       const result = await doctorsCollection.find(query).toArray();
       res.send(result);
     });
 
     // delete doctor
-    app.delete("/doctors", async (req, res) => {
+    app.delete("/doctors", verifyJWT, verifyAdmin, async (req, res) => {
       const id = req.query.id;
       const query = { _id: ObjectId(id) };
       const result = await doctorsCollection.deleteOne(query);
