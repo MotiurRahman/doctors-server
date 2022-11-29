@@ -5,12 +5,13 @@
 // EMAIL_API_KEY=30a9574c5c045ff4454d5931f584dd0d-f2340574-886580cf
 // EMAIL_DOMAIN=sandboxea847f5ec29a4b3ba2e6b336681c60a1.mailgun.org
 
+//Update all the info
+
 const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-const nodemailer = require("nodemailer");
 const mg = require("nodemailer-mailgun-transport");
 
 const { query } = require("express");
@@ -272,10 +273,10 @@ async function run() {
         return res.send({ acknowledged: false, message });
       }
       // Send mail after booking
-      sendMail(booking);
+
       const result = await bookingCollection.insertOne(booking);
       // send email for appioment confirmation
-      sendBookingEmail(booking);
+      sendMail(booking);
       res.send(result);
     });
 
