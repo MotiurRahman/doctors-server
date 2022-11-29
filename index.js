@@ -8,6 +8,7 @@
 const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const nodemailer = require("nodemailer");
 const mg = require("nodemailer-mailgun-transport");
@@ -273,6 +274,8 @@ async function run() {
       // Send mail after booking
       sendMail(booking);
       const result = await bookingCollection.insertOne(booking);
+      // send email for appioment confirmation
+      sendBookingEmail(booking);
       res.send(result);
     });
 
