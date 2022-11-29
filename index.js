@@ -1,7 +1,16 @@
+// DB_USER=doctors_server
+// DB_PASSWORD=!motiur08034!
+// ACCESS_TOKEN_SECRET=6f33ac7b0d12b84754dff3987eaac2eb106443433b26e3cb109e458d830492c2d569916ac95239b5e5fc706976e99823c536d4114e7deaee137a6d48565d4f6d
+// STRIPE_SECRET=sk_test_51HsSmsLZ4CJed036Nfe4qbS2XbbhKh8rbYrjuXF1tbZRZddyPo5VwuOuyRBGxqjoBV0Kt2GXBN5IvKcTQpsOrwwc00SidBP7y9
+// EMAIL_API_KEY=30a9574c5c045ff4454d5931f584dd0d-f2340574-886580cf
+// EMAIL_DOMAIN=sandboxea847f5ec29a4b3ba2e6b336681c60a1.mailgun.org
+
 const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const nodemailer = require("nodemailer");
+const mg = require("nodemailer-mailgun-transport");
 
 const { query } = require("express");
 require("dotenv").config();
@@ -13,15 +22,9 @@ const port = process.env.PORT || 8000;
 app.use(cors());
 app.use(express.json());
 
-// app.get("/", (req, res) => {
-//   res.send("Hello world");
-// });
-
-app.get("/", (req, res) => {
-  res.json({ result: true });
+app.get("/hello", (req, res) => {
+  res.send("Hello world");
 });
-
-console.log(process.env.DB_USER, process.env.DB_PASSWORD);
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@hero-one.z3ku6ig.mongodb.net/?retryWrites=true&w=majority`;
 console.log(uri);
@@ -31,30 +34,72 @@ const client = new MongoClient(uri, {
   serverApi: ServerApiVersion.v1,
 });
 
-function verifyJWT(req, res, next) {
-  const authHeader = req.headers.authorization;
-  //console.log("authHeader", authHeader);
-  if (!authHeader) {
-    return res
-      .status(401)
-      .send({ status: 401, message: "unauthorization access" });
-  }
+function sendMail(booking) {
+  const { appointmentDate, email, treatment, appointment, slot } = booking;
+  const auth = {
+    auth: {
+      api_key: process.env.EMAIL_API_KEY,
+      domain: process.env.EMAIL_DOMAIN,
+    },
+  };
 
-  const token = authHeader.split(" ")[1];
+  console.log(auth);
+  console.log(email);
+  const nodemailerMailgun = nodemailer.createTransport(mg(auth));
 
-  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, function (err, decoded) {
-    if (err) {
-      return res
-        .status(401)
-        .send({ status: 401, message: "unauthorization access" });
+  nodemailerMailgun.sendMail(
+    {
+      from: "motiur.mbstu@gmail.com",
+      to: email, // An array if you have multiple recipients.
+      subject: "Booking Confirmation From Doctors Portal!",
+
+      html: `<h3>Welcome to Doctors Portal</h3>
+      <div>
+      <p>Your appointment date on ${appointmentDate} at ${slot}</p>
+      <p>Thanks from Doctors Portal</p>
+      </div>
+
+      `,
+      // //You can use "text:" to send plain-text content. It's oldschool!
+      // text: "Mailgun rocks, pow pow!",
+    },
+    (err, info) => {
+      if (err) {
+        console.log(`Error: ${err}`);
+      } else {
+        console.log(`Response: ${JSON.stringify(info)}`);
+      }
     }
-    req.decoded = decoded;
-    next();
-  });
+  );
 }
 
 async function run() {
   try {
+    function verifyJWT(req, res, next) {
+      const authHeader = req.headers.authorization;
+      //console.log("authHeader", authHeader);
+      if (!authHeader) {
+        return res
+          .status(401)
+          .send({ status: 401, message: "unauthorization access" });
+      }
+
+      const token = authHeader.split(" ")[1];
+
+      jwt.verify(
+        token,
+        process.env.ACCESS_TOKEN_SECRET,
+        function (err, decoded) {
+          if (err) {
+            return res
+              .status(401)
+              .send({ status: 401, message: "unauthorization access" });
+          }
+          req.decoded = decoded;
+          next();
+        }
+      );
+    }
     const appointmentOptionCollection = client
       .db("doctors")
       .collection("appointmentOptions");
@@ -225,7 +270,8 @@ async function run() {
         const message = `You already have a booking on ${booking.appointmentDate}`;
         return res.send({ acknowledged: false, message });
       }
-
+      // Send mail after booking
+      sendMail(booking);
       const result = await bookingCollection.insertOne(booking);
       res.send(result);
     });
@@ -359,5 +405,5 @@ async function run() {
 run().catch((err) => console.log(error));
 
 app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`);
+  console.log(`Server app listening on port ${port}`);
 });
